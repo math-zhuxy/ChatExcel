@@ -123,7 +123,7 @@ class GLM_MODEL:
             wb.save(filename=self.SAVE_FILE_PATH)
         except Exception:
             print(f"发生错误{Exception}")
-            return "存储数据失败"
+            return "存储数据失败，请检查文件路径和工作表名称是否正确"
 
         return "存储数据成功"
 
@@ -132,7 +132,7 @@ class GLM_MODEL:
 
 glm_model = GLM_MODEL()
 
-def excel_operate(user_input: str, file_path: str, progress_callback) -> str:
+def excel_operate(user_input: str, file_path: str,function_called: str ,progress_callback) -> str:
     glm_model.FILE_PATH = file_path
 
     glm_model.messages.append({
@@ -142,14 +142,25 @@ def excel_operate(user_input: str, file_path: str, progress_callback) -> str:
 
     # 创建完请求
     for i in range(11):
-        progress_callback(i)
+        progress_callback(i, "正在创建请求")
         time.sleep(0.005)
+
+    tool_choice = "auto"
+
+    if function_called == "none":
+        tool_choice = ""
+    elif function_called == "read":
+        tool_choice = {"type": "function", "function": {"name": "read_excel"}}
+    elif function_called == "write":
+        tool_choice = {"type": "function", "function": {"name": "write_excel"}}
+    else:
+        return "参数function_called不正确"
 
     response = glm_model.chatglm_client.chat.completions.create(
         model = "glm-4-flash", 
         messages = glm_model.messages,
         tools = glm_model.FUNCTION_METHOD,
-        tool_choice = "auto"
+        tool_choice = tool_choice
     )
 
     glm_model.messages.append(response.choices[0].message.model_dump())
@@ -157,7 +168,7 @@ def excel_operate(user_input: str, file_path: str, progress_callback) -> str:
     # 获取到函数调用信息
     print(response)
     for i in range(35):
-        progress_callback(i+11)
+        progress_callback(i+11, "正在获取模型信息")
         time.sleep(0.005)
 
     if response.choices[0].message.tool_calls:
@@ -173,11 +184,14 @@ def excel_operate(user_input: str, file_path: str, progress_callback) -> str:
         except Exception:
             print(f"发生错误{Exception}")
             glm_model.messages = []
+            for i in range(55):
+                progress_callback(i+46, "函数调用错误")
+                time.sleep(0.001)
             return "函数调用错误，请联系开发者或者更改输入"
         
         # 调用完函数
         for i in range(20):
-            progress_callback(i+46)
+            progress_callback(i+46, "正在调用函数")
             time.sleep(0.01)
         glm_model.messages.append({
             "role": "tool",
@@ -189,7 +203,7 @@ def excel_operate(user_input: str, file_path: str, progress_callback) -> str:
             model = "glm-4-flash",  
             messages = glm_model.messages,
             tools = glm_model.FUNCTION_METHOD,
-            tool_choice = "auto"
+            tool_choice = tool_choice
         )
 
         glm_model.messages.append(response.choices[0].message.model_dump())
@@ -198,11 +212,11 @@ def excel_operate(user_input: str, file_path: str, progress_callback) -> str:
 
         # 获取到最终请求
         for i in range(35):
-            progress_callback(i+66)
+            progress_callback(i+66, "模型正在解析结果")
             time.sleep(0.005)
     else:
         # 无需调用函数
         for i in range(90):
-            progress_callback(i+11)
+            progress_callback(i+11, "无需调用函数，模型正在整理信息")
 
     return response.choices[0].message.content
