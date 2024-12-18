@@ -3,8 +3,10 @@ import json
 from openpyxl import load_workbook
 from openpyxl.cell import Cell
 import time
-
+from enum import Enum
 from typing import List
+from typing import Tuple
+
 class GLM_MODEL:
     def __init__(self):      
         self.CHATGLM_API_KEY = "e202ab113e4f9e25fff7aac718bc0a1e.FYBjMOyOzwDKj9dA"
@@ -123,7 +125,7 @@ class GLM_MODEL:
             wb.save(filename=self.SAVE_FILE_PATH)
         except Exception:
             print(f"发生错误{Exception}")
-            return "存储数据失败，请检查文件路径和工作表名称是否正确"
+            return "fail"
 
         return "存储数据成功"
 
@@ -132,18 +134,20 @@ class GLM_MODEL:
 
 glm_model = GLM_MODEL()
 
-def excel_operate(user_input: str, file_path: str,function_called: str ,progress_callback) -> str:
+class OUTPUT_STATE(Enum):
+    MESSAGE_SUCCESS = 1
+    FUNCTION_CALLED_SUCCESS = 2
+    FUNCTION_CALLED_FAIL = 3
+    INCORRECT_PARAMETER = 4
+    FILE_PATH_ERROR = 5
+
+def excel_operate(user_input: str, file_path: str,function_called: str ,progress_callback) -> Tuple[str, OUTPUT_STATE]:
     glm_model.FILE_PATH = file_path
 
     glm_model.messages.append({
         "role": "user",
         "content": user_input
     })
-
-    # 创建完请求
-    for i in range(11):
-        progress_callback(i, "正在创建请求")
-        time.sleep(0.005)
 
     tool_choice = "auto"
 
@@ -154,7 +158,12 @@ def excel_operate(user_input: str, file_path: str,function_called: str ,progress
     elif function_called == "write":
         tool_choice = {"type": "function", "function": {"name": "write_excel"}}
     else:
-        return "参数function_called不正确"
+        return "参数function_called不正确", OUTPUT_STATE.INCORRECT_PARAMETER
+    
+    # 创建完请求
+    for i in range(11):
+        progress_callback(i, "正在初步分析需求")
+        time.sleep(0.005)
 
     response = glm_model.chatglm_client.chat.completions.create(
         model = "glm-4-flash", 
@@ -163,10 +172,12 @@ def excel_operate(user_input: str, file_path: str,function_called: str ,progress
         tool_choice = tool_choice
     )
 
+    # print(response)
+
+
     glm_model.messages.append(response.choices[0].message.model_dump())
 
     # 获取到函数调用信息
-    print(response)
     for i in range(35):
         progress_callback(i+11, "正在获取模型信息")
         time.sleep(0.005)
@@ -187,12 +198,19 @@ def excel_operate(user_input: str, file_path: str,function_called: str ,progress
             for i in range(55):
                 progress_callback(i+46, "函数调用错误")
                 time.sleep(0.001)
-            return "函数调用错误，请联系开发者或者更改输入"
+            return "函数调用错误，请联系开发者或者更改prompt", OUTPUT_STATE.FUNCTION_CALLED_FAIL
         
         # 调用完函数
         for i in range(20):
             progress_callback(i+46, "正在调用函数")
             time.sleep(0.01)
+        
+        if tool_call.function.name == "read_excel" and function_result == [[]]:
+            return "文件路径或工作表名称出错", OUTPUT_STATE.FILE_PATH_ERROR
+
+        if tool_call.function.name == "write_excel" and function_result == "fail":
+            return "文件路径或工作表名称出错", OUTPUT_STATE.FILE_PATH_ERROR
+
         glm_model.messages.append({
             "role": "tool",
             "content": f"{json.dumps(function_result)}",
@@ -208,15 +226,16 @@ def excel_operate(user_input: str, file_path: str,function_called: str ,progress
 
         glm_model.messages.append(response.choices[0].message.model_dump())
 
-        print(response)
+        # print(response)
 
         # 获取到最终请求
         for i in range(35):
             progress_callback(i+66, "模型正在解析结果")
             time.sleep(0.005)
+        return response.choices[0].message.content, OUTPUT_STATE.FUNCTION_CALLED_SUCCESS
     else:
         # 无需调用函数
         for i in range(90):
             progress_callback(i+11, "无需调用函数，模型正在整理信息")
-
-    return response.choices[0].message.content
+    return response.choices[0].message.content, OUTPUT_STATE.MESSAGE_SUCCESS
+    
