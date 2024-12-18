@@ -64,11 +64,11 @@ class GLM_MODEL:
         self.messages=[
             {
             "role": "system",
-            "content": """
-                            1.你是一个Excel的工作助手
-                            2.你的输出必须是中文。
+            "content":  """
+                            1.你是一个Excel的工作助手，可以帮助用户完成Excel的相关操作
+                            2.你的输出语言必须是中文。
                             3.涉及对Excel的操作时尽量调用read_excel或write_excel函数
-                            4.不要推测用户的输入，如果用户没有说明你必须问他
+                            4.不要假设或猜测传入函数的参数值。如果用户的描述不明确，请要求用户提供必要信息
                         """
             }
         ]
@@ -153,6 +153,8 @@ def excel_operate(user_input: str, file_path: str,function_called: str ,progress
 
     if function_called == "none":
         tool_choice = ""
+    elif function_called == "auto":
+        tool_choice = "auto"
     elif function_called == "read":
         tool_choice = {"type": "function", "function": {"name": "read_excel"}}
     elif function_called == "write":
@@ -173,7 +175,6 @@ def excel_operate(user_input: str, file_path: str,function_called: str ,progress
     )
 
     # print(response)
-
 
     glm_model.messages.append(response.choices[0].message.model_dump())
 

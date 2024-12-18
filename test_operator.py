@@ -8,7 +8,7 @@ def test_operator():
         user_input = input("输入你的要求：")
         if user_input == '-1':
             break
-        ai_output = excel_operate(
+        ai_output, _ = excel_operate(
             user_input=user_input,
             file_path="./test.xlsx",
             function_called=function_call,
