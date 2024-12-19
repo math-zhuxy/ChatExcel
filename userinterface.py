@@ -132,15 +132,15 @@ class Application(QMainWindow):
     def show_warning(self, message: str):
         self.warning_label.setText(message)
         self.warning_label.setVisible(True)
-        QTimer.singleShot(1500, self.hide_warning)  
+        QTimer.singleShot(1000, self.hide_warning)  
     
     def hide_information(self):
-        self.warning_label.setVisible(False)
+        self.information_label.setVisible(False)
     
     def show_information(self, message: str):
         self.information_label.setText(message)
         self.information_label.setVisible(True)
-        QTimer.singleShot(1500, self.hide_information)  
+        QTimer.singleShot(1000, self.hide_information)  
 
     def upload_file(self):
         options = QFileDialog.Options()

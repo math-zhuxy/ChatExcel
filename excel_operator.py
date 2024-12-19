@@ -193,12 +193,12 @@ def excel_operate(user_input: str, file_path: str,function_called: str ,progress
             for i in range(55):
                 progress_callback(i+46, "函数调用错误")
                 time.sleep(0.001)
-            return "函数调用错误，请联系开发者或者更改prompt", OUTPUT_STATE.FUNCTION_CALLED_FAIL
+            return "函数调用错误，请检查输入是否有问题", OUTPUT_STATE.FUNCTION_CALLED_FAIL
         
         # 调用完函数
         for i in range(20):
             progress_callback(i+46, "正在调用函数")
-            time.sleep(0.01)
+            time.sleep(0.05)
         
         if tool_call.function.name == "read_excel" and function_result == [[]]:
             return "文件路径或工作表名称出错", OUTPUT_STATE.FILE_PATH_ERROR
