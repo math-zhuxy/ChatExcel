@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import (
     QPushButton, QProgressBar, QLabel, QFileDialog, QLineEdit, QScrollArea
 )
 from PyQt5.QtCore import Qt, QTimer
+import time
 
 class ChatWindow(QMainWindow):
     def __init__(self):
@@ -71,6 +72,9 @@ class ChatWindow(QMainWindow):
         
         # 进度条
         self.progress_bar = QProgressBar()
+        self.progress_bar.setMinimum(0)
+        self.progress_bar.setMaximum(100)
+        self.progress_bar.setValue(0)
         self.status_layout.addWidget(self.progress_bar)
         
         # 状态文本
@@ -96,17 +100,28 @@ class ChatWindow(QMainWindow):
     
     def send_message(self):
         user_text = self.user_input_textfield.text().strip()
-        if user_text:
+        if not user_text:
+            self.show_warning("用户输入不能为空")
+            return
+        
+        file_path = self.file_path_textfield.text().strip()
+        if not file_path:
+            self.show_warning("文件不能为空")
+            return
+
+        else:
             # 显示用户消息
             self.add_message(user_text, sender="user")
             self.user_input_textfield.clear()
+
+            for i in range(101):
+                self.progress_bar.setValue(i)
+                time.sleep(0.005)
             
             # 模拟AI回复
             self.add_message("AI正在处理您的请求...", sender="ai")
             
             # 这里可以添加实际的AI处理逻辑
-        else:
-            self.show_warning("用户输入不能为空")
     
     def add_message(self, text, sender="user"):
         message_layout = QHBoxLayout()
