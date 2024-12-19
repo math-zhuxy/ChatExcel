@@ -1,9 +1,9 @@
 import sys
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QTextEdit, QPushButton, QProgressBar, QLabel, QFileDialog, QLineEdit, QScrollArea
+    QPushButton, QProgressBar, QLabel, QFileDialog, QLineEdit, QScrollArea
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 
 class ChatWindow(QMainWindow):
     def __init__(self):
@@ -19,6 +19,12 @@ class ChatWindow(QMainWindow):
         self.main_layout = QVBoxLayout()
         self.main_layout.setSpacing(15)
         self.central_widget.setLayout(self.main_layout)
+
+        # 警告标签（初始隐藏）
+        self.warning_label = QLabel("")
+        self.warning_label.setStyleSheet("background-color: #FFCCCC; color: #FF0000; padding: 10px;")
+        self.warning_label.setVisible(False)
+        self.main_layout.addWidget(self.warning_label)
         
         # 消息显示区域
         self.scroll_area = QScrollArea()
@@ -73,6 +79,14 @@ class ChatWindow(QMainWindow):
         
         self.main_layout.addLayout(self.status_layout)
     
+    def hide_warning(self):
+        self.warning_label.setVisible(False)
+    
+    def show_warning(self, message: str):
+        self.warning_label.setText(message)
+        self.warning_label.setVisible(True)
+        QTimer.singleShot(5000, self.hide_warning)  
+
     def upload_file(self):
         options = QFileDialog.Options()
         options |= QFileDialog.ReadOnly
@@ -91,6 +105,8 @@ class ChatWindow(QMainWindow):
             self.add_message("AI正在处理您的请求...", sender="ai")
             
             # 这里可以添加实际的AI处理逻辑
+        else:
+            self.show_warning("用户输入不能为空")
     
     def add_message(self, text, sender="user"):
         message_layout = QHBoxLayout()
