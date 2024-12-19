@@ -3,9 +3,9 @@ import json
 from openpyxl import load_workbook
 from openpyxl.cell import Cell
 import time
-from enum import Enum
 from typing import List
 from typing import Tuple
+from utils import OUTPUT_STATE
 
 class GLM_MODEL:
     def __init__(self):      
@@ -134,14 +134,8 @@ class GLM_MODEL:
 
 glm_model = GLM_MODEL()
 
-class OUTPUT_STATE(Enum):
-    MESSAGE_SUCCESS = 1
-    FUNCTION_CALLED_SUCCESS = 2
-    FUNCTION_CALLED_FAIL = 3
-    INCORRECT_PARAMETER = 4
-    FILE_PATH_ERROR = 5
-
 def excel_operate(user_input: str, file_path: str,function_called: str ,progress_callback) -> Tuple[str, OUTPUT_STATE]:
+    print("start excel_operator function")
     glm_model.FILE_PATH = file_path
 
     glm_model.messages.append({

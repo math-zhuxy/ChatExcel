@@ -1,14 +1,45 @@
 import sys
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QComboBox,
     QPushButton, QProgressBar, QLabel, QFileDialog, QLineEdit, QScrollArea
 )
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, QObject, QThread, pyqtSignal
 import time
+from utils import OUTPUT_STATE
 
-class ChatWindow(QMainWindow):
-    def __init__(self):
+class Worker(QObject):
+    progress = pyqtSignal(int, str)
+    finished = pyqtSignal(str, object)
+
+    def __init__(self, user_input: str, file_path: str, function_called: str, func):
         super().__init__()
+        self.user_input = user_input
+        self.file_path = file_path
+        self.function_called = function_called
+        self.func = func
+
+    def run(self):
+        try:
+            result, state = self.func(
+                self.user_input,
+                self.file_path,
+                self.function_called,
+                self.progress_callback
+            )
+            self.finished.emit(result, state)
+        except Exception as e:
+            self.finished.emit(str(e), OUTPUT_STATE.MESSAGE_SUCCESS)
+
+    def progress_callback(self, percentage: int, step: str):
+        self.progress.emit(percentage, step)
+
+
+class Application(QMainWindow):
+    def __init__(self ,func):
+        super().__init__()
+
+        self.func = func
+
         self.setWindowTitle("AI交互界面")
         self.setGeometry(100, 100, 800, 600)
         
@@ -21,11 +52,17 @@ class ChatWindow(QMainWindow):
         self.main_layout.setSpacing(15)
         self.central_widget.setLayout(self.main_layout)
 
-        # 警告标签（初始隐藏）
+        # 警告标签
         self.warning_label = QLabel("")
-        self.warning_label.setStyleSheet("background-color: #FFCCCC; color: #FF0000; padding: 10px;")
+        self.warning_label.setStyleSheet("background-color:rgb(255, 0, 0); color:rgb(0, 0, 0); padding: 10px;")
         self.warning_label.setVisible(False)
         self.main_layout.addWidget(self.warning_label)
+
+        # 提醒标签
+        self.information_label =QLabel("")
+        self.information_label.setStyleSheet("background-color:rgb(4, 255, 0); color:rgb(0, 0, 0); padding: 10px;")
+        self.information_label.setVisible(False)
+        self.main_layout.addWidget(self.information_label)
         
         # 消息显示区域
         self.scroll_area = QScrollArea()
@@ -62,8 +99,14 @@ class ChatWindow(QMainWindow):
         
         # 发送按钮
         self.send_button = QPushButton("发送")
-        self.send_button.clicked.connect(self.send_message)
+        self.send_button.clicked.connect(self.start_progress)
         self.input_layout.addWidget(self.send_button)
+
+        # 函数选择下拉列表
+        self.func_select = QComboBox()
+        func_opera = ["read", "write", "auto", "none"]
+        self.func_select.addItems(func_opera)
+        self.input_layout.addWidget(self.func_select)
         
         self.main_layout.addLayout(self.input_layout)
         
@@ -89,7 +132,15 @@ class ChatWindow(QMainWindow):
     def show_warning(self, message: str):
         self.warning_label.setText(message)
         self.warning_label.setVisible(True)
-        QTimer.singleShot(5000, self.hide_warning)  
+        QTimer.singleShot(1500, self.hide_warning)  
+    
+    def hide_information(self):
+        self.warning_label.setVisible(False)
+    
+    def show_information(self, message: str):
+        self.information_label.setText(message)
+        self.information_label.setVisible(True)
+        QTimer.singleShot(1500, self.hide_information)  
 
     def upload_file(self):
         options = QFileDialog.Options()
@@ -98,7 +149,45 @@ class ChatWindow(QMainWindow):
         if file_name:
             self.file_path_textfield.setText(file_name)
     
-    def send_message(self):
+    def update_progress(self, percentage: int, step: str):
+        self.progress_bar.setValue(percentage)
+        self.status_label.setText(f"{step}")
+        # self.addmessage(f"进度更新: {percentage}% - 步骤: {step}")
+
+    def on_finished(self, result: str, state: OUTPUT_STATE):
+        self.send_button.setEnabled(True)
+        if state == OUTPUT_STATE.FUNCTION_CALLED_SUCCESS:
+            self.progress_bar.setValue(100)
+            self.status_label.setText("状态：完成")
+            self.add_message(f"结果: {result}", "ai")
+            self.show_information("调用函数成功")
+        elif state == OUTPUT_STATE.FUNCTION_CALLED_FAIL:
+            self.progress_bar.setValue(100)
+            self.status_label.setText("状态：完成")
+            self.add_message(f"结果: {result} (失败)", "ai")
+            
+        elif state == OUTPUT_STATE.INCORRECT_PARAMETER:
+            self.progress_bar.setValue(0)
+            self.status_label.setText("状态：空闲")
+            self.add_message(f"结果: {result} (参数错误)", "ai")
+            
+        elif state == OUTPUT_STATE.FILE_PATH_ERROR:
+            self.progress_bar.setValue(0)
+            self.status_label.setText("状态：空闲")
+            self.add_message(f"结果: {result} (文件路径错误)", "ai")
+            
+        elif state == OUTPUT_STATE.MESSAGE_SUCCESS:
+            self.progress_bar.setValue(0)
+            self.status_label.setText("状态：空闲")
+            self.add_message(f"结果: {result} (消息)", "ai")
+            
+        else:
+            self.progress_bar.setValue(0)
+            self.status_label.setText("状态：空闲")
+            self.add_message(f"结果: {result} (未知状态)", "ai")
+            
+
+    def start_progress(self):
         user_text = self.user_input_textfield.text().strip()
         if not user_text:
             self.show_warning("用户输入不能为空")
@@ -108,20 +197,38 @@ class ChatWindow(QMainWindow):
         if not file_path:
             self.show_warning("文件不能为空")
             return
+        
+        self.send_button.setEnabled(False)
+        
+        # 显示用户消息
+        self.add_message(user_text, sender="user")
+        self.user_input_textfield.clear()
 
-        else:
-            # 显示用户消息
-            self.add_message(user_text, sender="user")
-            self.user_input_textfield.clear()
+        self.thread = QThread()
+        self.worker = Worker(
+            user_input = user_text,
+            file_path = file_path,
+            function_called = self.func_select.currentText(),
+            func = self.func
+        )
+        self.worker.moveToThread(self.thread)
+        # 连接信号和槽
+        self.thread.started.connect(self.worker.run)
+        self.worker.progress.connect(self.update_progress)
+        self.worker.finished.connect(self.on_finished)
+        self.worker.finished.connect(self.thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.thread.finished.connect(self.thread.deleteLater)
+        
+        # 启动线程
+        self.thread.start()
 
-            for i in range(101):
-                self.progress_bar.setValue(i)
-                time.sleep(0.005)
-            
-            # 模拟AI回复
-            self.add_message("AI正在处理您的请求...", sender="ai")
-            
-            # 这里可以添加实际的AI处理逻辑
+        # # 模拟AI回复
+        # self.add_message("AI正在处理您的请求...", sender="ai")
+
+        # self.show_information("处理成功")
+        
+        # 这里可以添加实际的AI处理逻辑
     
     def add_message(self, text, sender="user"):
         message_layout = QHBoxLayout()
@@ -133,16 +240,10 @@ class ChatWindow(QMainWindow):
         elif sender == "ai":
             # AI消息右对齐
             message_label = QLabel(text)
-            message_label.setStyleSheet("background-color: #FFFFFF; padding: 5px; border-radius: 5px;")
+            message_label.setStyleSheet("background-color:rgb(145, 127, 127); padding: 5px; border-radius: 5px;")
             message_layout.addWidget(message_label, alignment=Qt.AlignRight)
         
         self.messages_layout.addLayout(message_layout)
         
         # 自动滚动到底部
         self.scroll_area.verticalScrollBar().setValue(self.scroll_area.verticalScrollBar().maximum())
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    window = ChatWindow()
-    window.show()
-    sys.exit(app.exec_())
