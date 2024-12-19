@@ -174,9 +174,9 @@ def excel_operate(user_input: str, file_path: str,function_called: str ,progress
         tool_choice = tool_choice
     )
 
-    # print(response)
-
     glm_model.messages.append(response.choices[0].message.model_dump())
+
+    # print(response)
 
     # 获取到函数调用信息
     for i in range(35):

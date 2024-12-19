@@ -1,112 +1,117 @@
-import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
-from ctypes import windll
-import threading
+import sys
+from PyQt5.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QTextEdit, QPushButton, QProgressBar, QLabel, QFileDialog, QLineEdit, QScrollArea
+)
+from PyQt5.QtCore import Qt
 
-# 确保使用逻辑像素而不是物理像素
-windll.shcore.SetProcessDpiAwareness(1)
-
-class Application(tk.Tk):
-    def __init__(self, process_function):
+class ChatWindow(QMainWindow):
+    def __init__(self):
         super().__init__()
+        self.setWindowTitle("AI交互界面")
+        self.setGeometry(100, 100, 800, 600)
         
-        self.process_function = process_function
-        self.progress_value = 0
+        # 主部件
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
         
-        # 设置窗口标题和尺寸
-        self.title("ChatExcel")
-        self.geometry("1000x500")  # 宽度大于高度
+        # 主布局
+        self.main_layout = QVBoxLayout()
+        self.main_layout.setSpacing(15)
+        self.central_widget.setLayout(self.main_layout)
         
+        # 消息显示区域
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.messages_widget = QWidget()
+        self.messages_layout = QVBoxLayout()
+        self.messages_layout.setAlignment(Qt.AlignTop)
+        self.messages_widget.setLayout(self.messages_layout)
+        self.scroll_area.setWidget(self.messages_widget)
+        self.main_layout.addWidget(self.scroll_area)
+        
+        # 文件上传区域布局
+        self.file_layout = QHBoxLayout()
+
         # 文件上传按钮
-        self.upload_button = ttk.Button(self, text="上传文件", command=self.open_file)
-        self.upload_button.place(relx=0.05, rely=0.05, anchor='w')
+        self.upload_button = QPushButton("上传文件")
+        self.upload_button.clicked.connect(self.upload_file)
+        self.file_layout.addWidget(self.upload_button)
         
         # 显示文件路径的文本框
-        self.file_path_label = ttk.Label(self, text="文件路径：")
-        self.file_path_label.place(relx=0.05, rely=0.12, anchor='w')
-        self.file_path_display = tk.Text(self, wrap=tk.WORD, height=1, width=60)
-        self.file_path_display.place(relx=0.2, rely=0.12, anchor='w')
-        self.file_path_display.config(state='disabled')  # 禁用编辑
+        self.file_path_textfield = QLineEdit()
+        self.file_path_textfield.setReadOnly(True)
+        self.file_layout.addWidget(self.file_path_textfield)
+
+        self.main_layout.addLayout(self.file_layout)
+
+         # 用户输入区域布局
+        self.input_layout = QHBoxLayout()
         
         # 用户输入文本框
-        self.user_input_label = ttk.Label(self, text="请输入内容：")
-        self.user_input_label.place(relx=0.05, rely=0.20, anchor='w')
-        self.user_input = ttk.Entry(self, width=50)
-        self.user_input.place(relx=0.2, rely=0.20, anchor='w')
+        self.user_input_textfield = QLineEdit()
+        self.user_input_textfield.setPlaceholderText("请输入您的消息...")
+        self.input_layout.addWidget(self.user_input_textfield)
         
         # 发送按钮
-        self.send_button = ttk.Button(self, text="发送", command=self.start_processing)
-        self.send_button.place(relx=0.05, rely=0.30, anchor='w')
+        self.send_button = QPushButton("发送")
+        self.send_button.clicked.connect(self.send_message)
+        self.input_layout.addWidget(self.send_button)
         
-        # 进度条和当前步骤信息
-        self.progress_and_step_frame = ttk.Frame(self)
-        self.progress_and_step_frame.place(relx=0.2, rely=0.30, anchor='w')
+        self.main_layout.addLayout(self.input_layout)
         
-        self.progress = ttk.Progressbar(self.progress_and_step_frame, orient="horizontal", length=200, mode="determinate")
-        self.progress.pack(side=tk.LEFT, padx=5)
+        # 状态布局
+        self.status_layout = QHBoxLayout()
         
-        self.current_step = ttk.Label(self.progress_and_step_frame, text="")
-        self.current_step.pack(side=tk.RIGHT, padx=5)
+        # 进度条
+        self.progress_bar = QProgressBar()
+        self.status_layout.addWidget(self.progress_bar)
         
-        # AI输出文本框
-        self.ai_output_label = ttk.Label(self, text="AI 输出：")
-        self.ai_output_label.place(relx=0.05, rely=0.40, anchor='w')
-        self.ai_output = tk.Text(self, wrap=tk.WORD, height=5, width=80)
-        self.ai_output.place(relx=0.05, rely=0.47, anchor='nw')
+        # 状态文本
+        self.status_label = QLabel("状态：空闲")
+        self.status_layout.addWidget(self.status_label)
         
-        # 初始化进度条值
-        self.progress["value"] = 0
-        self.progress["maximum"] = 100
-        
-    def open_file(self):
-        filename = filedialog.askopenfilename()
-        if filename:
-            # 更新文件路径文本框
-            self.file_path_display.config(state='normal')
-            self.file_path_display.delete('1.0', tk.END)
-            self.file_path_display.insert(tk.END, filename)
-            self.file_path_display.config(state='disabled')
+        self.main_layout.addLayout(self.status_layout)
+    
+    def upload_file(self):
+        options = QFileDialog.Options()
+        options |= QFileDialog.ReadOnly
+        file_name, _ = QFileDialog.getOpenFileName(self, "选择文件", "", "Excel文件 (*.xlsx)", options=options)
+        if file_name:
+            self.file_path_textfield.setText(file_name)
+    
+    def send_message(self):
+        user_text = self.user_input_textfield.text().strip()
+        if user_text:
+            # 显示用户消息
+            self.add_message(user_text, sender="user")
+            self.user_input_textfield.clear()
             
-    def update_progress(self, value):
-        self.progress["value"] = value
-        if value <= 10:
-            self.current_step.config(text="请求体已构建好")
-        if 10 < value and value <= 45:
-            self.current_step.config(text="得到大模型回应")
-        if 45 < value and value <= 65:
-            self.current_step.config(text="程序正在调用函数处理")
-        if 65 < value and value <= 100:
-            self.current_step.config(text="处理完毕")
-        self.update_idletasks()  # 更新GUI
+            # 模拟AI回复
+            self.add_message("AI正在处理您的请求...", sender="ai")
+            
+            # 这里可以添加实际的AI处理逻辑
     
-    def start_processing(self):
-        user_input_text = self.user_input.get().strip()
-        file_path = self.file_path_display.get('1.0', tk.END).strip()
+    def add_message(self, text, sender="user"):
+        message_layout = QHBoxLayout()
+        if sender == "user":
+            # 用户消息左对齐
+            message_label = QLabel(text)
+            message_label.setStyleSheet("background-color: #DCF8C6; padding: 5px; border-radius: 5px;")
+            message_layout.addWidget(message_label, alignment=Qt.AlignLeft)
+        elif sender == "ai":
+            # AI消息右对齐
+            message_label = QLabel(text)
+            message_label.setStyleSheet("background-color: #FFFFFF; padding: 5px; border-radius: 5px;")
+            message_layout.addWidget(message_label, alignment=Qt.AlignRight)
         
-        if not user_input_text:
-            messagebox.showwarning("警告", "请输入内容后再发送。")
-            return
+        self.messages_layout.addLayout(message_layout)
         
-        if not file_path:
-            messagebox.showwarning("警告", "请先上传文件。")
-            return
-        
-        # 清空之前的输出
-        self.ai_output.delete('1.0', tk.END)
-        
-        # 启动新线程来运行处理函数
-        self.thread = threading.Thread(target=self.run_process, args=(user_input_text, file_path))
-        self.thread.start()
-        
-    def run_process(self, input_text, file_path):
-        result = self.process_function(input_text, file_path, self.update_progress)
-        
-        # 处理完成后更新UI
-        self.after(0, lambda: self.on_process_complete(result))
-    
-    def on_process_complete(self, result):
-        self.ai_output.insert(tk.END, f"{result}\n")
-        messagebox.showinfo("通知", "已完成操作")
+        # 自动滚动到底部
+        self.scroll_area.verticalScrollBar().setValue(self.scroll_area.verticalScrollBar().maximum())
 
-        # 清空用户输入
-        self.user_input.delete(0, tk.END)
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = ChatWindow()
+    window.show()
+    sys.exit(app.exec_())
