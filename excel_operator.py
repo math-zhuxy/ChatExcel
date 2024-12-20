@@ -9,10 +9,24 @@ from utils import OUTPUT_STATE
 
 class GLM_MODEL:
     def __init__(self):      
-        self.CHATGLM_API_KEY = "e202ab113e4f9e25fff7aac718bc0a1e.FYBjMOyOzwDKj9dA"
         self.FILE_PATH = ""
-        self.SAVE_FILE_PATH = "./test.xlsx"
+        # self.SAVE_FILE_PATH = "./test.xlsx"
+        try:
+            with open("config.json", 'r', encoding='utf-8') as file:
+                config_data = json.load(file)
+                api_key = config_data["api_key"]
+        except FileNotFoundError:
+            print("Error: The file config.json was not found.")
+        except json.JSONDecodeError:
+            print("Error: The file config.json is not a valid JSON file.")
+        except KeyError:
+            print("Error: The 'api_key' was not found in the JSON data.")
+
+
+        self.CHATGLM_API_KEY = api_key
+
         self.chatglm_client = ZhipuAI(api_key=self.CHATGLM_API_KEY)
+
         self.FUNCTION_METHOD = [
             {
                 "type": "function",
@@ -78,7 +92,7 @@ class GLM_MODEL:
         try:
             ws = load_workbook(filename=self.FILE_PATH, data_only=True)[sheet]  # 确保我们得到的是值而不是公式
         except FileExistsError:
-            print("文件名不存在")
+            print("文件名或工作簿不存在")
             return [[]]
         if ':' not in cell_range:
             cell_range=f"{cell_range}:{cell_range}"
@@ -105,6 +119,7 @@ class GLM_MODEL:
                     str_cell = ''  # 转换失败也设为空字符串
                 int_row.append(str_cell)
             result.append(int_row)
+        print("function read excel called succssfully")
         return result
     
     def is_number(self, num: str) -> bool:
@@ -122,11 +137,12 @@ class GLM_MODEL:
                 wb[sheet][cell_range] = float(data)
             else:
                 wb[sheet][cell_range] = data
-            wb.save(filename=self.SAVE_FILE_PATH)
+            wb.save(filename=self.FILE_PATH)
         except Exception:
             print(f"发生错误{Exception}")
             return "fail"
 
+        print("function write excel called succssfully")
         return "存储数据成功"
 
     def test_readexcel(self, test_sheet: str, test_range: str) -> None:
@@ -159,7 +175,7 @@ def excel_operate(user_input: str, file_path: str,function_called: str ,progress
     # 创建完请求
     for i in range(11):
         progress_callback(i, "正在初步分析需求")
-        time.sleep(0.005)
+        time.sleep(0.01)
 
     response = glm_model.chatglm_client.chat.completions.create(
         model = "glm-4-flash", 
@@ -175,37 +191,37 @@ def excel_operate(user_input: str, file_path: str,function_called: str ,progress
     # 获取到函数调用信息
     for i in range(35):
         progress_callback(i+11, "正在获取模型信息")
-        time.sleep(0.005)
+        time.sleep(0.01)
 
-    if response.choices[0].message.tool_calls:
+    while response.choices[0].message.tool_calls:
         tool_call = response.choices[0].message.tool_calls[0]
         args = tool_call.function.arguments
         function_result = {}
-        try:
-            if tool_call.function.name == "read_excel":
-                function_result = glm_model.read_excel(**json.loads(args))
-            if tool_call.function.name == "write_excel":
-                function_result = glm_model.write_excel(**json.loads(args))
 
-        except Exception:
-            print(f"发生错误{Exception}")
+        if tool_call.function.name == "read_excel":
+            function_result = glm_model.read_excel(**json.loads(args))
+        if tool_call.function.name == "write_excel":
+            function_result = glm_model.write_excel(**json.loads(args))
+    
+        if tool_call.function.name == "read_excel" and function_result == [[]]:
             glm_model.messages = []
             for i in range(55):
                 progress_callback(i+46, "函数调用错误")
-                time.sleep(0.001)
-            return "函数调用错误，请检查输入是否有问题", OUTPUT_STATE.FUNCTION_CALLED_FAIL
+                time.sleep(0.005)
+            return "文件路径或工作表名称出错，已清空消息列表", OUTPUT_STATE.FILE_PATH_ERROR
+
+        if tool_call.function.name == "write_excel" and function_result == "fail":
+            glm_model.messages = []
+            for i in range(55):
+                progress_callback(i+46, "函数调用错误")
+                time.sleep(0.005)
+            return "文件路径或工作表名称出错，已清空消息列表", OUTPUT_STATE.FILE_PATH_ERROR
         
         # 调用完函数
         for i in range(20):
             progress_callback(i+46, "正在调用函数")
             time.sleep(0.05)
         
-        if tool_call.function.name == "read_excel" and function_result == [[]]:
-            return "文件路径或工作表名称出错", OUTPUT_STATE.FILE_PATH_ERROR
-
-        if tool_call.function.name == "write_excel" and function_result == "fail":
-            return "文件路径或工作表名称出错", OUTPUT_STATE.FILE_PATH_ERROR
-
         glm_model.messages.append({
             "role": "tool",
             "content": f"{json.dumps(function_result)}",
