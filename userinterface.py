@@ -40,8 +40,8 @@ class Application(QMainWindow):
 
         self.func = func
 
-        self.setWindowTitle("AI交互界面")
-        self.setGeometry(100, 100, 800, 600)
+        self.setWindowTitle("ChatExcel")
+        self.setFixedSize(800, 600)
         
         # 主部件
         self.central_widget = QWidget()
@@ -235,11 +235,13 @@ class Application(QMainWindow):
         if sender == "user":
             # 用户消息左对齐
             message_label = QLabel(text)
+            # message_label.setWordWrap(True)  # 启用换行
             message_label.setStyleSheet("background-color: #DCF8C6; padding: 5px; border-radius: 5px;")
             message_layout.addWidget(message_label, alignment=Qt.AlignLeft)
         elif sender == "ai":
             # AI消息右对齐
             message_label = QLabel(text)
+            # message_label.setWordWrap(True)  # 启用换行
             message_label.setStyleSheet("background-color:rgb(145, 127, 127); padding: 5px; border-radius: 5px;")
             message_layout.addWidget(message_label, alignment=Qt.AlignRight)
         
